@@ -7,7 +7,7 @@ import { useState } from "react";
 // ✅ 分離したコンポーネント
 import { Header } from "./CenterPanel/Header";
 import { Row } from "./CenterPanel/Row";
-import { useBoards } from "@/app/hooks/useBoards";
+import { useBoards } from "@/lib/useBoards";
 
 
 // =============================
