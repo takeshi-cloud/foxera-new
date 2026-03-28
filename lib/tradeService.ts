@@ -1,3 +1,7 @@
+// =========================================
+// tradeService.ts
+// =========================================
+
 import { supabase } from "@/lib/supabase";
 
 export const insertTrade = async (data: any) => {
@@ -6,7 +10,7 @@ export const insertTrade = async (data: any) => {
     created_at: new Date().toISOString(),
   });
 
-  if (error) {
-    console.error("trade記録エラー:", error);
+  if (error && error.message) {
+    console.error("insertTrade エラー:", error);
   }
 };

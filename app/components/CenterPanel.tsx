@@ -7,6 +7,7 @@ import { useState } from "react";
 // ✅ 分離したコンポーネント
 import { Header } from "./CenterPanel/Header";
 import { Row } from "./CenterPanel/Row";
+import { useBoards } from "@/app/hooks/useBoards";
 
 
 // =============================
@@ -23,6 +24,7 @@ type Board = {
 
 export const CenterPanel = ({
   boards,
+  screenshots,
   load,
   actions,
   activePair,
@@ -110,6 +112,7 @@ console.log(boards);
       shortBoards={shortBoards}
       activePair={activePair}
       setActivePair={setActivePair}
+      screenshots={screenshots} 
     />
   ))}
         </div>
@@ -270,6 +273,7 @@ console.log(boards);
  <BoardCard
   item={item}
   boards={boards}
+  screenshots={screenshots}
   provided={provided}
   load={load}
   actions={actions}
@@ -356,7 +360,8 @@ console.log(boards);
                   {(provided) => (
  <BoardCard
   item={item}
-  boards={boards}   // ← 追加
+  boards={boards}   
+  screenshots={screenshots}
   provided={provided}
   load={load}
   actions={actions}

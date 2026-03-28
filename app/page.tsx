@@ -1,4 +1,8 @@
 "use client";
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
+
 
 import { getMarketData } from "@/lib/api/getMarketData";
 import { useEffect, useState } from "react";
@@ -28,7 +32,7 @@ export default function Home() {
   // =========================================
   // 📦 DBデータ取得
   // =========================================
-  const { boards, load } = useBoards();
+  const { boards, load, screenshots, actions } = useBoards();
 
   // =========================================
   // activePairをHomeに追加
@@ -72,16 +76,12 @@ export default function Home() {
   // ================================
   // 🧊 初回ロード & ダミー
   // ================================
-  useEffect(() => {
-    console.log("🔥 ダミーデータ投入");
+useEffect(() => {
+  if (activePair) {
+    loadMarket(activePair);
+  }
+}, [activePair]);
 
-    const dummy = [
-      { pair: "USDJPY", price: 150 },
-      { pair: "EURJPY", price: 160 },
-    ];
-
-    setMarketData(dummy);
-  }, []);
 
   // =========================================
   // 🧲 DnD処理（最重要🔥）
@@ -145,15 +145,21 @@ export default function Home() {
     if (destination.droppableId.startsWith("long-")) {
       const phase = destination.droppableId.replace("long-", "");
 
-      await updateBoard(
-        draggableId,
-        {
-          timeframe_type: "long",
-          phase,
-        },
-        item
-      );
+     const current = boards.find(b => b.id === draggableId);
 
+if (!current) {
+  console.error("item見つからない");
+  return;
+}
+
+await updateBoard(
+  draggableId,
+  {
+    timeframe_type: "long",
+    phase,
+  },
+  current
+);
       await load();
       return;
     }
@@ -164,14 +170,21 @@ export default function Home() {
     if (destination.droppableId.startsWith("short-")) {
       const phase = destination.droppableId.replace("short-", "");
 
-      await updateBoard(
-        draggableId,
-        {
-          timeframe_type: "short",
-          phase,
-        },
-        item
-      );
+     const current = boards.find(b => b.id === draggableId);
+
+if (!current) {
+  console.error("item見つからない");
+  return;
+}
+
+await updateBoard(
+  draggableId,
+  {
+    timeframe_type: "short",
+    phase,
+  },
+  current
+);
 
       await load();
       return;
@@ -243,6 +256,7 @@ export default function Home() {
           >
             <CenterPanel
               boards={boards}
+              screenshots={screenshots} 
               load={load}
               activePair={activePair}
               setActivePair={setActivePair}
@@ -270,6 +284,7 @@ export default function Home() {
       <div style={{ color: "white", padding: "10px" }}>
         <div>activePair: {activePair}</div>
         <div>market: {JSON.stringify(market)}</div>
+        <div>price: {market?.price}</div>
       </div>
     </>
   );

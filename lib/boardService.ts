@@ -1,12 +1,12 @@
 // =========================================
-// boardService.ts（完全修正版）
+// boardService.ts（完全版）
 // =========================================
 
 import { supabase } from "@/lib/supabase";
-import { insertTrade } from "@/lib/tradeService";
+import { insertTrade } from "./tradeService";
 
 // =========================================
-// 🟥 取得（そのままでOK）
+// 🟥 取得
 // =========================================
 export const fetchBoards = async () => {
   const { data, error } = await supabase.from("board").select("*");
@@ -19,16 +19,9 @@ export const fetchBoards = async () => {
   return data || [];
 };
 
-
-
 // =========================================
-// 🟦 更新（LONG / SHORT の更新すべて）
+// 🟦 更新（すべてここ）
 // =========================================
-// ・フェーズ移動
-// ・方向切替
-// ・画像更新
-// ・trade_date 更新
-// など、監視中カードの更新は全部ここ
 export const updateBoard = async (id: string, updates: any, oldData: any) => {
   const payload = {
     ...updates,
@@ -43,15 +36,37 @@ export const updateBoard = async (id: string, updates: any, oldData: any) => {
   if (error) {
     console.error("updateBoard エラー:", error);
     alert("ボード更新に失敗しました");
+    return;
   }
 
-  // TODO: trades に履歴を残す（oldData → updates）
+  // 🔥 履歴保存
+  await insertTrade({
+    user_id: oldData.user_id,
+    pair: oldData.pair,
+    timeframe_type: oldData.timeframe_type,
+    direction: updates.direction ?? oldData.direction,
+    phase: updates.phase ?? oldData.phase,
+    image_url: updates.image_url ?? oldData.image_url,
+    trade_date: updates.trade_date ?? oldData.trade_date,
+    action: "update_board",
+  });
 };
 
+// =========================================
+// 🟦 方向切替（service側にまとめる）
+// =========================================
+export const toggleDirection = async (item: any) => {
+  const newDir = item.direction === "long" ? "short" : "long";
 
+  await updateBoard(
+    item.id,
+    { direction: newDir },
+    item
+  );
+};
 
 // =========================================
-// 🟨 削除（LONG → WAIT、SHORT の ×）
+// 🟨 削除（WAIT移動）
 // =========================================
 export const deleteBoard = async (id: string) => {
   const { error } = await supabase.from("board").delete().eq("id", id);
@@ -59,18 +74,13 @@ export const deleteBoard = async (id: string) => {
   if (error) {
     console.error("deleteBoard エラー:", error);
     alert("ボード削除に失敗しました");
+    return;
   }
-
-  // TODO: trades に「削除」の履歴を追加
 };
 
-
-
 // =========================================
-// 🟩 追加（WAIT → LONG のときのみ）
+// 🟩 追加（WAIT → LONG）
 // =========================================
-// WAIT は DB に保存しないので、
-// insertBoard は「LONG の初期カードを作る」ためだけに存在する。
 export const insertBoard = async (pair: string) => {
   const {
     data: { user },
@@ -98,5 +108,17 @@ export const insertBoard = async (pair: string) => {
   if (error) {
     console.error("insertBoard エラー:", error);
     alert("ボード作成に失敗しました");
+    return;
   }
+
+  // 🔥 履歴保存
+  await insertTrade({
+    user_id: userId,
+    pair,
+    timeframe_type: "long",
+    direction: "long",
+    phase: "Reversal",
+    trade_date: payload.trade_date,
+    action: "create_long",
+  });
 };

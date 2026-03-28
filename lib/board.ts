@@ -1,5 +1,6 @@
 
 import { supabase } from "@/lib/supabase";
+import { insertTrade } from "./tradeService";
 
 // ① 取得
 export const getBoard = async (userId: string) => {
@@ -20,24 +21,31 @@ export const getBoard = async (userId: string) => {
 export const updateBoardPhase = async (
   id: string,
   phase: string,
-  direction: string
+  direction: string,
+  oldData: any // ← 追加
 ) => {
   const { error } = await supabase
     .from("board")
     .update({
       direction,
-      phase: phase, // ← 修正
+      phase,
     })
     .eq("id", id);
 
-  if (error) console.error(error);
-};
+  if (error) {
+    console.error(error);
+    return;
+  }
 
-// ③ 追加（初回用）
-export const insertBoard = async (data: any) => {
-  const { error } = await supabase
-    .from("board")
-    .insert(data);
-
-  if (error) console.error(error);
+  // 🔥 追加（履歴）
+  await insertTrade({
+    user_id: oldData.user_id,
+    pair: oldData.pair,
+    timeframe_type: oldData.timeframe_type,
+    direction,
+    phase,
+    image_url: oldData.image_url,
+    trade_date: oldData.trade_date,
+    action: "update_phase",
+  });
 };

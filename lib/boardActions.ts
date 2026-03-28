@@ -1,38 +1,38 @@
 // =========================================
-// boardActions.ts（完全修正版）
+// boardActions.ts（完全版）
 // =========================================
 
 import { supabase } from "@/lib/supabase";
 import { updateBoard, deleteBoard } from "./boardService";
+import { insertTrade } from "./tradeService";
+
 
 // =========================================
-// 🟥 LONG / SHORT → WAIT（監視終了 = 削除）
+// 🟥 WAIT移動（削除）
 // =========================================
-// WAIT は DB に保存しないので、削除が正しい
 export const moveToWait = async (item: any) => {
-  const { error } = await supabase
-    .from("board")
-    .delete()
-    .eq("id", item.id);
+  // 1. board から削除
+  await deleteBoard(item.id);
 
-  if (error) {
-    console.error("moveToWait エラー:", error);
-    alert("WAIT への移動に失敗しました");
-  }
-
-  // TODO: trades に「監視終了」の履歴を追加
+  // 2. trades に「move_to_wait」として 1 回だけ記録
+  await insertTrade({
+  user_id: item.user_id,
+  pair: item.pair,
+  timeframe_type: item.timeframe_type,
+  direction: item.direction,
+  phase: "none",   // ← WAIT も none
+  image_url: item.image_url,
+  trade_date: item.trade_date,
+  action: "move_to_wait",
+});
 };
 
 
-
 // =========================================
-// 🟦 LONG → SHORT（短期ボタン）
+// 🟦 LONG → SHORT
 // =========================================
-// SHORT は LONG の派生。direction を引き継ぐ。
-// SHORT は WAIT と行き来しない。
 export const createShort = async (item: any) => {
   const { user_id, pair, direction, image_url, trade_date } = item;
-  // 🔥 trade_date ではなく trade_time を取り出す
 
   // ① すでに短期があるか確認
   const { data: exists } = await supabase
@@ -43,64 +43,66 @@ export const createShort = async (item: any) => {
     .eq("user_id", user_id);
 
   if (exists && exists.length > 0) {
-    console.log("すでに短期が存在するため作成しません");
+    console.log("すでに短期あり");
     return;
   }
 
-  // ② なければ作成
-  const { error } = await supabase.from("board").upsert({
-  user_id,
-  pair,
-  direction,
-  phase: "Trend",
-  timeframe_type: "short",
-  image_url,
-  trade_date, // ← 修正
-  updated_at: new Date().toISOString(),
-});
+  // ② SHORT を作成
+  const { error } = await supabase.from("board").insert({
+    user_id,
+    pair,
+    direction,
+    phase: "Trend",
+    timeframe_type: "short",
+    image_url,
+    trade_date,
+    updated_at: new Date().toISOString(),
+  });
 
   if (error) {
     console.error("createShort エラー:", error);
     alert("短期ボード作成に失敗しました");
-    console.log("user_id:", user_id);
+    return;
   }
+
+  // ③ 🔥 trades にログを残す（これが抜けていた）
+ await insertTrade({
+  user_id,
+  pair,
+  timeframe_type: "short",
+  direction,
+  phase: item.phase,   // ← 元の LONG の phase をそのまま使う
+  image_url,
+  trade_date,
+  action: "create_short",
+});
 };
-
-
 // =========================================
-// 🟩 方向切替（LONG / SHORT 共通）
+// 🟩 方向切替
 // =========================================
 export const toggleDirection = async (item: any) => {
   const newDir = item.direction === "long" ? "short" : "long";
 
-  const { error } = await supabase
-    .from("board")
-    .update({
-      direction: newDir,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", item.id);
-
-  if (error) {
-    console.error("toggleDirection エラー:", error);
-    alert("方向切り替えに失敗しました");
-  }
-
-  // TODO: trades に「方向切替」の履歴を追加
+  await updateBoard(item.id, { direction: newDir }, item);
 };
 
 
-
 // =========================================
-// 🟨 SHORT の × ボタン（削除）
+// 🟨 SHORT削除
 // =========================================
-export const removeBoard = async (id: string) => {
-  const { error } = await supabase.from("board").delete().eq("id", id);
+export const removeBoard = async (item: any) => {
+  // 1. board から削除
+  await deleteBoard(item.id);
 
-  if (error) {
-    console.error("removeBoard エラー:", error);
-    alert("カード削除に失敗しました");
-  }
-
-  // TODO: trades に「短期削除」の履歴を追加
+  // 2. trades に「delete_short」として記録
+  await insertTrade({
+  user_id: item.user_id,
+  pair: item.pair,
+  timeframe_type: item.timeframe_type,
+  direction: item.direction,
+  phase: "none",   // ← 削除は none
+  image_url: item.image_url,
+  trade_date: item.trade_date,
+  action: "delete_short",
+});
 };

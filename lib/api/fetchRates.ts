@@ -1,24 +1,24 @@
-
-import { supabase } from "../supabase";
 export const fetchRates = async (pair: string) => {
-  console.log("🔥 fetch start:", pair);
+  const symbol = pair.toUpperCase(); // USDJPY など
+  const API_KEY = process.env.NEXT_PUBLIC_TWELVEDATA_KEY;
 
-  const cleanPair = pair.trim().toUpperCase();
+  const url = `https://api.twelvedata.com/price?symbol=${symbol}&apikey=${API_KEY}`;
 
- const { data, error } = await supabase
-  .from("pivot_levels")
-  .select("*")
-  .ilike("pair", `%${cleanPair}%`);
+  try {
+    const res = await fetch(url);
+    const json = await res.json();
 
-  console.log("🔥 supabase data:", data);
-   console.log("🔥 cleanPair:", cleanPair);
-  console.log("🔥 data:", data);
-  console.log("🔥 error:", error);
+    if (!json?.price) {
+      console.log("❌ TwelveData error:", json);
+      return null;
+    }
 
-  if (error) {
-    console.log("❌ supabase error:", error);
+    return {
+      pair,
+      current_price: Number(json.price),
+    };
+  } catch (e) {
+    console.log("❌ fetchRates error:", e);
     return null;
   }
-
-  return data?.[0] || null;
 };
