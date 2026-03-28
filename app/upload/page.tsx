@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 
 export default function Upload() {
   const router = useRouter();
-
   const today = new Date().toISOString().split("T")[0];
 
   // =============================
@@ -14,47 +13,42 @@ export default function Upload() {
   // =============================
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [isFull, setIsFull] = useState(false);
-  const [fitMode, setFitMode] = useState<"contain" | "cover">("contain");
-
-  const [pair, setPair] = useState("USDJPY");
-  const [timeframe, setTimeframe] = useState("1H");
-  const [direction, setDirection] = useState("long");
-  const [phase, setPhase] = useState("Trend");
-  const [date, setDate] = useState(today);
-  const [note, setNote] = useState("");
-
   const handleRemoveImage = () => {
     setFile(null);
     setPreview(null);
   };
 
+  // 🔥 ペア：ハイブリッド対応
+  const [pair, setPair] = useState("USDJPY");
+  const [isCustomPair, setIsCustomPair] = useState(false);
+
+  const [timeframe, setTimeframe] = useState("1H");
+  const [direction, setDirection] = useState("long");
+  const [phase, setPhase] = useState("Trend");
+  const [date, setDate] = useState(today);
+  const [note, setNote] = useState("");
+  const [isFull, setIsFull] = useState(false);
+
   const timeframeType =
     timeframe === "5M" || timeframe === "15M" ? "short" : "long";
 
   // =============================
-  // 🔹 localStorage復元
+  // 🔥 ログインチェック
   // =============================
   useEffect(() => {
-    const saved = localStorage.getItem("uploadForm");
-    if (saved) {
-      const data = JSON.parse(saved);
-      setPair(data.pair || "USDJPY");
-      setTimeframe(data.timeframe || "1H");
-      setDirection(data.direction || "long");
-      setPhase(data.phase || "Trend");
-    }
-  }, []);
+    const checkAuth = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-  // =============================
-  // 🔹 localStorage保存
-  // =============================
-  useEffect(() => {
-    localStorage.setItem(
-      "uploadForm",
-      JSON.stringify({ pair, timeframe, direction, phase })
-    );
-  }, [pair, timeframe, direction, phase]);
+      if (!user) {
+        alert("ログインが必要です");
+        router.push("/login");
+      }
+    };
+
+    checkAuth();
+  }, []);
 
   // =============================
   // 🔹 ファイル選択
@@ -84,71 +78,53 @@ export default function Upload() {
   }, []);
 
   // =============================
-  // 🔹 アップロード（完全修正版）
+  // 🔥 アップロード（完全版）
   // =============================
   const handleUpload = async () => {
-  try {
-    if (!file) {
-      alert("画像を選択してください");
-      return;
-    }
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    // ① ファイル名生成
-    const fileName = `${Date.now()}_${file.name}`;
+      if (!user) {
+        alert("ログインが必要です");
+        router.push("/login");
+        return;
+      }
 
-    // ② Storageにアップロード
-    const { error: uploadError } = await supabase.storage
-      .from("images")
-      .upload(fileName, file);
+      const userId = user.id;
 
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
-      alert("アップロード失敗");
-      return;
-    }
+      if (!file) {
+        alert("画像を選択してください");
+        return;
+      }
 
-    // ③ 公開URL取得
-    const { data } = supabase.storage
-      .from("images")
-      .getPublicUrl(fileName);
+      const fileName = `${Date.now()}_${file.name}`;
 
-    const imageUrl = data.publicUrl;
+      const { error: uploadError } = await supabase.storage
+        .from("images")
+        .upload(fileName, file);
 
-    // ④ DBに保存
-    const { error: insertError } = await supabase
-      .from("screenshots")
-      .insert([
-        {
-          image_url: imageUrl,
-          pair: selectedPair,
-          status: selectedStatus,
-          created_at: new Date(),
-        },
-      ]);
+      if (uploadError) {
+        alert("アップロード失敗");
+        return;
+      }
 
-    if (insertError) {
-      console.error("Insert error:", insertError);
-      alert("DB保存失敗");
-      return;
-    }
+      const { data } = supabase.storage
+        .from("images")
+        .getPublicUrl(fileName);
 
-    alert("アップロード成功🔥");
-  } catch (err) {
-    console.error(err);
-    alert("エラー発生");
-  }
-};
+      const imageUrl = data.publicUrl;
 
-      // =============================
-      // 🔹 screenshots保存
-      // =============================
+      // screenshots 保存
       const { error: shotError } = await supabase.from("screenshots").insert({
+        user_id: userId,
         pair,
         timeframe,
         timeframe_type: timeframeType,
         image_url: imageUrl,
-        created_at: new Date(date).toISOString(), // ← 修正済み
-        notes:note,
+        created_at: new Date(date).toISOString(),
+        notes: note,
       });
 
       if (shotError) {
@@ -157,9 +133,7 @@ export default function Upload() {
         return;
       }
 
-      // =============================
-      // 🔹 board取得
-      // =============================
+      // board 取得
       const { data: existing } = await supabase
         .from("board")
         .select("*")
@@ -171,26 +145,40 @@ export default function Upload() {
         !existing || new Date(date) >= new Date(existing.trade_date);
 
       if (shouldUpdate) {
-        const { error: boardError } = await supabase.from("board").upsert(
-          {
-            user_id: "temp-user",
-            pair,
-            direction,
-            phase,
-            image_url: imageUrl,
-            trade_date: date,
-            timeframe_type: timeframeType,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "user_id,pair,timeframe_type",
-          }
-        );
+        const { error: boardError } = await supabase.from("board").upsert({
+          user_id: userId,
+          pair,
+          direction,
+          phase,
+          image_url: imageUrl,
+          trade_date: date,
+          timeframe_type: timeframeType,
+          updated_at: new Date().toISOString(),
+        });
 
         if (boardError) {
           console.error("board更新エラー:", boardError);
-          alert("board更新失敗（でもスクショは保存済み）");
+          alert("board更新失敗（スクショは保存済み）");
         }
+      }
+
+      // trades 保存
+      const { error: tradeError } = await supabase.from("trades").insert({
+        user_id: userId,
+        pair,
+        timeframe,
+        timeframe_type: timeframeType,
+        direction,
+        phase,
+        trade_date: date,
+        image_url: imageUrl,
+        note,
+        created_at: new Date().toISOString(),
+      });
+
+      if (tradeError) {
+        console.error("trades保存エラー:", tradeError);
+        alert("trades保存失敗（screenshots と board は保存済み）");
       }
 
       alert("保存完了！");
@@ -202,8 +190,46 @@ export default function Upload() {
   };
 
   // =============================
-  // 🔹 return JSX
+  // 🔹 Zoom & Pan states
   // =============================
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [start, setStart] = useState({ x: 0, y: 0 });
+  const [origin, setOrigin] = useState({ x: 0, y: 0 });
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+
+    setOrigin({ x: offsetX, y: offsetY });
+
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    setScale((prev) => Math.min(Math.max(prev + delta, 0.5), 5));
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setStart({ x: e.clientX - pos.x, y: e.clientY - pos.y });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging) return;
+    setPos({ x: e.clientX - start.x, y: e.clientY - start.y });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // =============================
+  // 🔹 return JSX（完全統合）
+  // =============================
+  const pairOptions = ["USDJPY", "GBPJPY", "EURJPY", "GOLD", "NASDAQ"];
+
   return (
     <div
       style={{
@@ -246,19 +272,41 @@ export default function Upload() {
           <input type="file" onChange={handleFileChange} hidden />
         </label>
 
-        <select
-          value={pair}
-          onChange={(e) => setPair(e.target.value)}
-          style={selectStyle}
-        >
-          <option>USDJPY</option>
-          <option>GBPJPY</option>
-          <option>EURJPY</option>
-          <option>GBPUSD</option>
-          <option>EURUSD</option>
-          <option>GOLD</option>
-          <option>NASDAQ</option>
-        </select>
+        {/* 🔥 ペア欄（ハイブリッド） */}
+        {isCustomPair ? (
+          <input
+            value={pair}
+            onChange={(e) => setPair(e.target.value)}
+            onBlur={() => {
+              if (!pair.trim()) {
+                setIsCustomPair(false);
+                setPair("USDJPY");
+              }
+            }}
+            placeholder="ペアを入力"
+            style={selectStyle}
+          />
+        ) : (
+          <select
+            value={pair}
+            onChange={(e) => {
+              if (e.target.value === "__custom__") {
+                setIsCustomPair(true);
+                setPair("");
+              } else {
+                setPair(e.target.value);
+              }
+            }}
+            style={selectStyle}
+          >
+            {pairOptions.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+            <option value="__custom__">その他（自由入力）</option>
+          </select>
+        )}
 
         <select
           value={timeframe}
@@ -311,42 +359,74 @@ export default function Upload() {
       </div>
 
       {/* プレビュー画面 */}
-      <div style={{ flex: 1, position: "relative" }}>
+      <div style={{ flex: 1, position: "relative", overflow: "auto" }}>
         {preview ? (
           <>
+            {/* 削除ボタン */}
             <button
               onClick={handleRemoveImage}
               style={{
                 position: "absolute",
                 top: "10px",
-                left: "10px",
+                right: "10px",
                 zIndex: 10,
-                background: "red",
+                background: "rgba(0,0,0,0.6)",
                 color: "white",
-                padding: "6px",
-                borderRadius: "6px",
                 border: "none",
+                borderRadius: "50%",
+                width: "32px",
+                height: "32px",
+                cursor: "pointer",
+                fontSize: "18px",
+                lineHeight: "32px",
+                textAlign: "center",
               }}
             >
-              削除
+              ×
             </button>
 
-            <img
-              src={preview}
-              onClick={() => setIsFull(true)}
+            {/* 🔥 ズーム＆パン対応コンテナ */}
+            <div
+              onWheel={handleWheel}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
               style={{
                 width: "100%",
                 height: "100%",
-                objectFit: fitMode,
-                background: "black",
-                cursor: "zoom-in",
+                overflow: "hidden",
+                position: "relative",
+                cursor: isDragging ? "grabbing" : "grab",
               }}
-            />
+            >
+              <div
+                style={{
+                  transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+                  transformOrigin: `${origin.x}px ${origin.y}px`,
+                  width: "100%",
+                  height: "100%",
+                }}
+              >
+                <img
+                  src={preview!}
+                  onClick={() => setIsFull(true)}
+                  style={{
+                    width: "100%",
+                    height: "auto",
+                    objectFit: "contain",
+                    userSelect: "none",
+                    pointerEvents: "none",
+                  }}
+                />
+              </div>
+            </div>
           </>
         ) : (
           <div style={previewBox}>Ctrl+Vで貼り付け</div>
         )}
 
+        {/* 全画面表示 */}
         {isFull && (
           <div
             onClick={() => setIsFull(false)}
@@ -377,36 +457,32 @@ export default function Upload() {
 }
 
 // =============================
-// styles
+// 🔹 Styles
 // =============================
 const uploadBox = {
-  background: "#1e293b",
-  border: "2px dashed #334155",
-  borderRadius: "8px",
   padding: "10px",
-  textAlign: "center" as const,
+  background: "#1e293b",
+  borderRadius: "6px",
+  textAlign: "center",
   cursor: "pointer",
-};
+  border: "1px solid #334155",
+} as const;
 
 const selectStyle = {
+  padding: "8px",
   background: "#1e293b",
   color: "white",
-  border: "1px solid #334155",
   borderRadius: "6px",
-  padding: "6px",
+  border: "1px solid #334155",
 };
 
 const textareaStyle = {
-  ...selectStyle,
-  minHeight: "60px",
-};
-
-const saveBtn = {
-  padding: "10px",
-  background: "#16a34a",
-  borderRadius: "8px",
-  border: "none",
-  cursor: "pointer",
+  height: "80px",
+  padding: "8px",
+  background: "#1e293b",
+  color: "white",
+  borderRadius: "6px",
+  border: "1px solid #334155",
 };
 
 const previewBox = {
@@ -416,5 +492,16 @@ const previewBox = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  borderRadius: "6px",
   opacity: 0.6,
+};
+
+const saveBtn = {
+  padding: "10px",
+  background: "#16a34a",
+  color: "white",
+  borderRadius: "6px",
+  border: "none",
+  cursor: "pointer",
+  marginTop: "8px",
 };

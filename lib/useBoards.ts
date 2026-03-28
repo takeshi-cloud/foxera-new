@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 
 export const useBoards = () => {
   // =============================
-  // 📦 board（UI用）
+  // 📦 board（監視中のカード）
   // =============================
   const [boards, setBoards] = useState<any[]>([]);
 
@@ -16,11 +16,17 @@ export const useBoards = () => {
   const [shots, setShots] = useState<any[]>([]);
 
   // =============================
-  // 🔄 board取得
+  // 🔄 board取得（最新順）
   // =============================
   const load = async () => {
     const data = await fetchBoards();
-    setBoards(data || []);
+
+    // updated_at の新しい順に並べる
+    const sorted = [...(data || [])].sort((a, b) => {
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+
+    setBoards(sorted);
   };
 
   useEffect(() => {
@@ -28,23 +34,24 @@ export const useBoards = () => {
   }, []);
 
   // =============================
-  // 🔄 screenshots取得
+  // 🔄 screenshots取得（loadShotsとして独立）
   // =============================
+  const loadShots = async () => {
+    const { data, error } = await supabase
+      .from("screenshots")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("screenshots error:", error);
+      return;
+    }
+
+    setShots(data || []);
+  };
+
   useEffect(() => {
-    const fetchShots = async () => {
-      const { data, error } = await supabase
-        .from("screenshots")
-        .select("*");
-
-      if (error) {
-        console.error("screenshots error:", error);
-        return;
-      }
-
-      setShots(data || []);
-    };
-
-    fetchShots();
+    loadShots();
   }, []);
 
   // =============================
@@ -65,6 +72,7 @@ export const useBoards = () => {
     boards,
     load,
     shots,
-    hasScreenshot, // ←これ追加
+    loadShots,   // ← 新しく追加（アップロード後に再取得できる）
+    hasScreenshot,
   };
 };

@@ -3,7 +3,7 @@
 import { Droppable, Draggable } from "@hello-pangea/dnd";
 import { BoardCard } from "./BoardCard/BoardCard";
 import { useState } from "react";
-import { useBoards } from "@/lib/useBoards";
+
 // ✅ 分離したコンポーネント
 import { Header } from "./CenterPanel/Header";
 import { Row } from "./CenterPanel/Row";
@@ -267,15 +267,16 @@ console.log(boards);
                         index={index}
                       >
                         {(provided) => (
-                          <BoardCard
-                            item={item}
-                            provided={provided}
-                            load={load}
-                            actions={actions}
-                            active={normalize(activePair) === normalize(item.pair)}
-                            onClick={() => setActivePair(item.pair)}
-                            type="long"
-                          />
+ <BoardCard
+  item={item}
+  boards={boards}
+  provided={provided}
+  load={load}
+  actions={actions}
+  active={normalize(activePair) === normalize(item.pair)}
+  onClick={() => setActivePair(item.pair)}
+  type="long"
+/>
                         )}
                       </Draggable>
                     ))}
@@ -353,17 +354,16 @@ console.log(boards);
                   index={index}
                 >
                   {(provided) => (
-                    <BoardCard
-                      item={item}
-                      provided={provided}
-                      load={load}
-                      actions={actions}
-                      active={
-                        normalize(activePair) === normalize(item.pair)
-                      }
-                      onClick={() => setActivePair(item.pair)}
-                      type="short"
-                    />
+ <BoardCard
+  item={item}
+  boards={boards}   // ← 追加
+  provided={provided}
+  load={load}
+  actions={actions}
+  active={normalize(activePair) === normalize(item.pair)}
+  onClick={() => setActivePair(item.pair)}
+  type="short"
+/>
                   )}
                 </Draggable>
               ))}

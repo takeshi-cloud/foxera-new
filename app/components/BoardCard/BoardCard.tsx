@@ -15,6 +15,7 @@ const miniBtn = {
 // ===== カード本体 =====
 export const BoardCard = ({
   item,
+  boards,     // ← 追加
   provided,
   load,
   actions,
@@ -281,12 +282,12 @@ return (
       </div>
 
       {/* 短期生成 */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
+<button
+  onClick={(e) => {
+    e.stopPropagation();
+    const fullItem = boards.find(b => b.id === item.id);
+    createShort(fullItem).then(load);
 
-          // 🔥 directionを引き継いで短期作成
-          createShort(item).then(load);
 
         }}
         style={{

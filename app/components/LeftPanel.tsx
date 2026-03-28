@@ -195,6 +195,12 @@ export const LeftPanel = ({
               <div className="menuBtn">📤 アップロード</div>
             </Link>
 
+            <Link href="/history_image">
+              <div className="menuBtn">📊 ギャラリー</div>
+            </Link>
+
+
+
             <Link href="/trades">
               <div className="menuBtn">📊 トレード記録日誌</div>
             </Link>
